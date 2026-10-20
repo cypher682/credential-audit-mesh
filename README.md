@@ -2,8 +2,6 @@
 
 Identity, credential, authorization, and audit layer for B2B networks: signed credentials, selective disclosure, scalable revocation, transparency log, and attributable authorization decisions.
 
-Part of the [flagship portfolio](https://github.com/cypher682/flagship-portfolio).
-
 ## Status
 
 Scaffold. Issuance, verification, revocation, transparency log, and authorization are not implemented yet.
