@@ -20,8 +20,6 @@ Scaffold. Issuance, verification, revocation, transparency log, and authorizatio
 
 ## Documents
 
-- [Product overview](13-credential-audit-mesh.md)
-- [PRD](13-d01-prd.md)
 - [Architecture](docs/architecture.md)
 
 ## Quick start
