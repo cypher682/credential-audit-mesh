@@ -8,6 +8,7 @@ pub struct Config {
     pub database_url: Option<String>,
     pub issuer_id: String,
     pub issuer_key: Option<String>,
+    pub log_path: Option<String>,
 }
 
 impl Default for Config {
@@ -19,6 +20,7 @@ impl Default for Config {
             database_url: None,
             issuer_id: "did:mesh:issuer".to_string(),
             issuer_key: None,
+            log_path: Some("data/transparency.log".to_string()),
         }
     }
 }
@@ -57,6 +59,9 @@ impl Config {
         if let Some(v) = get("ISSUER_KEY").filter(|v| !v.trim().is_empty()) {
             cfg.issuer_key = Some(v);
         }
+        if let Some(v) = get("LOG_PATH").filter(|v| !v.trim().is_empty()) {
+            cfg.log_path = Some(v.trim().to_string());
+        }
 
         Ok(cfg)
     }
@@ -85,6 +90,7 @@ mod tests {
             "DATABASE_URL" => Some("postgres://localhost/mesh".into()),
             "ISSUER_ID" => Some("did:mesh:acme".into()),
             "ISSUER_KEY" => Some("00".repeat(32)),
+            "LOG_PATH" => Some("/tmp/mesh.log".into()),
             _ => None,
         })
         .expect("config");
@@ -99,6 +105,7 @@ mod tests {
             cfg.issuer_key.as_deref(),
             Some("0000000000000000000000000000000000000000000000000000000000000000")
         );
+        assert_eq!(cfg.log_path.as_deref(), Some("/tmp/mesh.log"));
     }
 
     #[test]

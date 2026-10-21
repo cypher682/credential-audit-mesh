@@ -1,6 +1,7 @@
 use credential_audit_mesh::api::Api;
 use credential_audit_mesh::config::Config;
 use credential_audit_mesh::credential::Issuer;
+use credential_audit_mesh::transparency::TransparencyLog;
 use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
@@ -32,8 +33,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "credential issuer ready"
     );
 
+    let log = match cfg.log_path.as_deref() {
+        Some(path) => TransparencyLog::open(path).map_err(std::io::Error::other)?,
+        None => TransparencyLog::new(),
+    };
+    tracing::info!(
+        tree_size = log.tree_size(),
+        root_hash = log.head().root_hash,
+        "transparency log ready"
+    );
+
     let addr = cfg.addr();
-    let app = Api::new(issuer, cfg.service_name.clone(), env!("CARGO_PKG_VERSION")).router();
+    let app = Api::with_log(
+        issuer,
+        log,
+        cfg.service_name.clone(),
+        env!("CARGO_PKG_VERSION"),
+    )
+    .router();
 
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     tracing::info!(%addr, version = env!("CARGO_PKG_VERSION"), "server started");

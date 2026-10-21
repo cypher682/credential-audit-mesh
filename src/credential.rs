@@ -89,6 +89,12 @@ impl Credential {
         })
         .map_err(|err| CredentialError::Malformed(err.to_string()))
     }
+
+    pub fn digest(&self) -> Result<String, CredentialError> {
+        let bytes =
+            serde_jcs::to_vec(self).map_err(|err| CredentialError::Malformed(err.to_string()))?;
+        Ok(URL_SAFE_NO_PAD.encode(Sha256::digest(bytes)))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -190,6 +196,12 @@ impl Issuer {
         }
     }
 
+    pub fn sign_jcs<T: Serialize>(&self, value: &T) -> Result<String, CredentialError> {
+        let payload =
+            serde_jcs::to_vec(value).map_err(|err| CredentialError::Malformed(err.to_string()))?;
+        Ok(URL_SAFE_NO_PAD.encode(self.signing_key.sign(&payload).to_bytes()))
+    }
+
     pub fn issue(
         &self,
         subject: impl AsRef<str>,
@@ -278,6 +290,19 @@ impl CredentialVerifier {
         &self.key_id
     }
 
+    pub fn verify_jcs<T: Serialize>(
+        &self,
+        value: &T,
+        signature: &str,
+    ) -> Result<(), CredentialError> {
+        let payload =
+            serde_jcs::to_vec(value).map_err(|err| CredentialError::Malformed(err.to_string()))?;
+        let signature = decode_signature(signature)?;
+        self.verifying_key
+            .verify(&payload, &signature)
+            .map_err(|_| CredentialError::InvalidSignature)
+    }
+
     pub fn verify(
         &self,
         credential: &Credential,
@@ -299,13 +324,7 @@ impl CredentialVerifier {
             return Err(CredentialError::Expired);
         }
 
-        let signature_bytes = URL_SAFE_NO_PAD
-            .decode(&credential.signature)
-            .map_err(|_| CredentialError::Malformed("signature is not base64url".into()))?;
-        let signature_bytes: [u8; 64] = signature_bytes
-            .try_into()
-            .map_err(|_| CredentialError::Malformed("signature must be 64 bytes".into()))?;
-        let signature = Signature::from_bytes(&signature_bytes);
+        let signature = decode_signature(&credential.signature)?;
         self.verifying_key
             .verify(&credential.signing_payload()?, &signature)
             .map_err(|_| CredentialError::InvalidSignature)?;
@@ -319,6 +338,16 @@ impl CredentialVerifier {
             key_id: credential.key_id.clone(),
         })
     }
+}
+
+fn decode_signature(encoded: &str) -> Result<Signature, CredentialError> {
+    let bytes = URL_SAFE_NO_PAD
+        .decode(encoded)
+        .map_err(|_| CredentialError::Malformed("signature is not base64url".into()))?;
+    let bytes: [u8; 64] = bytes
+        .try_into()
+        .map_err(|_| CredentialError::Malformed("signature must be 64 bytes".into()))?;
+    Ok(Signature::from_bytes(&bytes))
 }
 
 fn unix_now() -> i64 {

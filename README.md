@@ -4,13 +4,13 @@ Identity, credential, authorization, and audit layer for B2B networks: signed cr
 
 ## Status
 
-v0.1: Ed25519 credential issuance and deterministic verification over HTTP. Credentials are self-contained signed JSON with JCS canonicalization, key ids, and expiry. Revocation, transparency, selective disclosure, and authorization are not implemented yet.
+v0.2: Ed25519 credential issuance and deterministic verification over HTTP, backed by an append-only transparency log with signed tree heads, inclusion proofs, and prefix-consistency proofs. Revocation, selective disclosure, and authorization are not implemented yet.
 
 | Stage | Scope | State |
 |-------|-------|-------|
 | 0 | Service skeleton, config, health, CI-ready build | done |
 | 1 | Signed credential issuance + verification | done |
-| 2 | Transparency log + inclusion proofs | next |
+| 2 | Transparency log + inclusion proofs | done |
 | 3 | Revocation + verification integration | planned |
 | 4 | Selective disclosure / predicates | planned |
 | 5 | Authorization engine + audit records | planned |
@@ -31,7 +31,7 @@ export ISSUER_KEY=$(openssl rand -hex 32)
 cargo run
 ```
 
-Without `ISSUER_KEY` the service generates an ephemeral key and logs a warning; issued credentials stop verifying after restart. Configuration is environment-based; see `.env.example`.
+Without `ISSUER_KEY` the service generates an ephemeral key and logs a warning; issued credentials stop verifying after restart. The transparency log is appended to `LOG_PATH` (default `data/transparency.log`) and reloaded on startup. Configuration is environment-based; see `.env.example`.
 
 ```sh
 curl localhost:8083/healthz
@@ -42,7 +42,7 @@ curl -sX POST localhost:8083/v1/credentials \
   -d '{"subject":"did:mesh:holder-1","claims":{"role":"supplier"},"ttl_seconds":600}'
 ```
 
-Send the returned object back as `{"credential": ...}` to `POST /v1/credentials/verify`.
+Send the returned `credential` object back as `{"credential": ...}` to `POST /v1/credentials/verify`. The response also contains a transparency entry, inclusion proof, and signed tree head. Current heads and historical proofs are available from `/v1/log`.
 
 ## What works
 
@@ -51,12 +51,16 @@ Send the returned object back as `{"credential": ...}` to `POST /v1/credentials/
 - Verification rejects tampering, unknown issuers or keys, future-issued credentials, and expired credentials.
 - TTL limits (1 second to 30 days), subject validation, and a 64-claim cap.
 - Public key discovery through `GET /v1/issuer`.
+- Append-only, durable transparency log with hashed subject and credential entries.
+- Signed tree heads, `O(log n)` inclusion proofs, and prefix-consistency proofs.
+- Public key discovery and local proof verification without trusting the service at query time.
 
 ## Limits
 
-- No revocation, transparency log, selective disclosure, or authorization decisions yet.
+- No revocation, selective disclosure, or authorization decisions yet.
 - One active issuer key per process. `ISSUER_KEY` is required for credentials that survive restart.
-- No persistence or issuance audit; this release is a stateless signing and verification service.
+- The log is a single-writer JSONL file. There is no replica gossip, witness cosigning, or multi-writer coordination.
+- Claims are not logged. Only credential and subject hashes are published, so the log cannot resolve a holder without the credential.
 - The issuance endpoint is unauthenticated. Keep it behind an operator-controlled network boundary.
 - Verification trusts the configured issuer identity and key id; multi-issuer key resolution comes later.
 
@@ -66,6 +70,7 @@ Send the returned object back as `{"credential": ...}` to `POST /v1/credentials/
 src/main.rs        service entrypoint and issuer setup
 src/api.rs         HTTP API
 src/credential.rs  signing, canonicalization, verification
+src/transparency.rs Merkle log, inclusion and consistency proofs
 src/config.rs      env config
 src/health.rs      liveness/readiness
 docs               architecture and API reference
