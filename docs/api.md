@@ -2,6 +2,12 @@
 
 Base path: `/v1`. The service is stateless for verification: credentials are self-contained signed JSON. Issuance also appends a privacy-preserving entry to an append-only transparency log and returns an inclusion proof.
 
+## Audit console
+
+`GET /` serves an embedded HTML console with `GET /ui/styles.css`, `GET /ui/app.js`, and `GET /ui/favicon.svg`. It is plain HTML/CSS/JS: no build pipeline, package manager, or third-party assets. The console issues and verifies credentials, lists recent log entries, fetches inclusion and consistency proofs, recomputes inclusion paths with WebCrypto SHA-256, and verifies the Ed25519 tree-head signature when the browser supports it.
+
+The console and all three asset routes send `Content-Security-Policy: default-src 'none'; style-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'self'; frame-ancestors 'none'`, plus `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, and `Cache-Control: no-store`. The console has no authentication and inherits the deployment boundary of the issuance API.
+
 ## Errors
 
 ```json
@@ -176,6 +182,10 @@ Returns a proof that the tree of size `first` is a prefix of the tree of size `s
 ```
 
 The first root is supplied by the caller from a previously trusted signed head. The second head is signed by the current issuer key. A `first` of `0` yields an empty proof.
+
+## Browser verification notes
+
+The console's local check does not trust `/v1/log/entries/{index}` for the proof result. It parses the returned entry, canonicalizes it as JCS, computes the RFC 6962 leaf and root hashes with WebCrypto SHA-256, and compares the result to the signed tree head. It then imports the raw Ed25519 key from `/v1/issuer` and verifies the head signature over `{"tree_size":...,"root_hash":...}`. Browsers without Ed25519 in WebCrypto still get local inclusion verification, with an explicit warning that the signature was not checked.
 
 ## Merkle construction
 

@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="description" content="Issue, verify, and audit signed credentials with a public transparency log.">
+  <title>Credential Mesh — Audit Console</title>
+  <link rel="icon" href="/ui/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/ui/styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="masthead">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">CM</span>
+      <div>
+        <h1>Credential Mesh</h1>
+        <p>Issuance, verification, and public audit</p>
+      </div>
+    </div>
+    <div class="connection" id="connection" data-state="pending" role="status" aria-live="polite">
+      <span class="connection-dot" aria-hidden="true"></span>
+      <span id="connectionText">Connecting</span>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="overview" aria-label="Service overview">
+      <div class="overview-item">
+        <span class="overview-label">Issuer</span>
+        <code id="issuerId">—</code>
+      </div>
+      <div class="overview-item">
+        <span class="overview-label">Signing key</span>
+        <code id="keyId">—</code>
+      </div>
+      <div class="overview-item">
+        <span class="overview-label">Log size</span>
+        <code id="treeSize">—</code>
+      </div>
+      <div class="overview-item overview-root">
+        <span class="overview-label">Tree root</span>
+        <code id="rootHash" title="">—</code>
+      </div>
+      <button class="text-button" id="refreshOverview" type="button">Refresh</button>
+    </section>
+
+    <div class="workspace">
+      <section class="panel" aria-labelledby="issueTitle">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Issuer</p>
+            <h2 id="issueTitle">Mint a credential</h2>
+          </div>
+          <span class="panel-note">Ed25519 · JCS</span>
+        </div>
+
+        <form id="issueForm" class="form" novalidate>
+          <div class="field">
+            <label for="subject">Subject</label>
+            <input id="subject" name="subject" type="text" value="did:mesh:holder-1" maxlength="256" autocomplete="off" required>
+            <p class="hint">Holder identifier, up to 256 characters.</p>
+          </div>
+
+          <div class="field">
+            <label for="claims">Claims</label>
+            <textarea id="claims" name="claims" rows="6" spellcheck="false" required>{
+  "role": "supplier",
+  "tier": 2
+}</textarea>
+            <p class="hint">JSON object. Logged as a hash, never in clear text.</p>
+          </div>
+
+          <div class="field field-inline">
+            <label for="ttl">Lifetime, seconds</label>
+            <input id="ttl" name="ttl" type="number" value="3600" min="1" max="2592000" step="1" required>
+            <p class="hint">Maximum 30 days.</p>
+          </div>
+
+          <button class="button button-primary" type="submit" id="issueButton">Issue credential</button>
+          <p class="form-error" id="issueError" role="alert" hidden></p>
+        </form>
+
+        <div class="outcome" id="issueOutcome" hidden aria-live="polite">
+          <div class="outcome-heading">
+            <h3>Issued</h3>
+            <button class="text-button" type="button" id="copyCredential">Copy credential</button>
+          </div>
+          <dl class="facts">
+            <div><dt>Subject</dt><dd id="issuedSubject">—</dd></div>
+            <div><dt>Log entry</dt><dd id="issuedIndex">—</dd></div>
+            <div><dt>Tree size</dt><dd id="issuedTreeSize">—</dd></div>
+            <div><dt>Expires</dt><dd id="issuedExpiry">—</dd></div>
+          </dl>
+          <pre class="code-block" id="issuedCredential"></pre>
+          <button class="button button-secondary" type="button" id="verifyLatest">Verify this credential</button>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="verifyTitle">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">Verifier</p>
+            <h2 id="verifyTitle">Check a credential</h2>
+          </div>
+          <span class="panel-note">stateless</span>
+        </div>
+
+        <form id="verifyForm" class="form" novalidate>
+          <div class="field">
+            <label for="credential">Credential JSON</label>
+            <textarea id="credential" name="credential" rows="12" spellcheck="false" placeholder='{"version":1,"issuer":"…","subject":"…","claims":{},"issued_at":0,"expires_at":0,"key_id":"…","signature":"…"}' required></textarea>
+            <p class="hint">Paste a credential or the full issuance response.</p>
+          </div>
+          <button class="button button-primary" type="submit" id="verifyButton">Verify</button>
+          <p class="form-error" id="verifyError" role="alert" hidden></p>
+        </form>
+
+        <div class="outcome" id="verifyOutcome" hidden aria-live="polite">
+          <div class="verdict" id="verdict" data-valid="false">
+            <span class="verdict-mark" aria-hidden="true"></span>
+            <div>
+              <h3 id="verdictTitle">Invalid</h3>
+              <p id="verdictReason">—</p>
+            </div>
+          </div>
+          <dl class="facts" id="verifiedFacts" hidden>
+            <div><dt>Subject</dt><dd id="verifiedSubject">—</dd></div>
+            <div><dt>Issued</dt><dd id="verifiedIssued">—</dd></div>
+            <div><dt>Expires</dt><dd id="verifiedExpiry">—</dd></div>
+            <div><dt>Key</dt><dd id="verifiedKey">—</dd></div>
+          </dl>
+          <pre class="code-block" id="verifiedClaims"></pre>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel panel-wide" aria-labelledby="logTitle">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">Auditor</p>
+          <h2 id="logTitle">Transparency log</h2>
+        </div>
+        <div class="heading-actions">
+          <span class="panel-note">SHA-256 · RFC 6962</span>
+          <button class="text-button" type="button" id="refreshEntries">Refresh entries</button>
+        </div>
+      </div>
+
+      <div class="log-layout">
+        <div class="log-list">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Index</th>
+                  <th scope="col">Subject hash</th>
+                  <th scope="col">Issued</th>
+                  <th scope="col">Expires</th>
+                </tr>
+              </thead>
+              <tbody id="entriesBody">
+                <tr><td colspan="4" class="empty">Loading entries…</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="hint">Showing the most recent entries. Select a row to inspect its inclusion proof.</p>
+        </div>
+
+        <aside class="proof" id="proofPanel" aria-live="polite">
+          <div class="proof-empty" id="proofEmpty">
+            <h3>Inclusion proof</h3>
+            <p id="proofEmptyText">Select a log entry to see the path to the signed tree head.</p>
+          </div>
+          <div id="proofContent" hidden>
+            <div class="proof-heading">
+              <h3 id="proofTitle">Entry</h3>
+              <button class="text-button" type="button" id="copyProof">Copy proof</button>
+            </div>
+            <dl class="facts">
+              <div><dt>Index</dt><dd id="proofIndex">—</dd></div>
+              <div><dt>Leaf</dt><dd><code id="proofLeaf">—</code></dd></div>
+              <div><dt>Root</dt><dd><code id="proofRoot">—</code></dd></div>
+              <div><dt>Tree size</dt><dd id="proofTreeSize">—</dd></div>
+            </dl>
+            <pre class="code-block" id="proofBody"></pre>
+            <button class="button button-secondary" type="button" id="checkProof">Check inclusion locally</button>
+            <p class="local-check" id="localCheck" role="status" aria-live="polite" hidden></p>
+          </div>
+        </aside>
+      </div>
+
+      <form class="consistency-form" id="consistencyForm" novalidate>
+        <div class="consistency-copy">
+          <h3>Consistency check</h3>
+          <p>Prove that an older signed tree is a prefix of the current tree.</p>
+        </div>
+        <div class="field field-compact">
+          <label for="firstSize">First size</label>
+          <input id="firstSize" type="number" min="0" step="1" value="1" required>
+        </div>
+        <div class="field field-compact">
+          <label for="secondSize">Second size</label>
+          <input id="secondSize" type="number" min="0" step="1" value="2" required>
+        </div>
+        <button class="button button-secondary" type="submit" id="consistencyButton">Get proof</button>
+      </form>
+      <p class="form-error" id="consistencyError" role="alert" hidden></p>
+      <pre class="code-block consistency-output" id="consistencyOutput" hidden></pre>
+    </section>
+  </main>
+
+  <footer>
+    <p>Signed credentials, verifiable history. API <a href="/v1/log">/v1/log</a> · <a href="/v1/issuer">/v1/issuer</a> · <a href="/v1/log/entries/0">/v1/log/entries/{index}</a></p>
+  </footer>
+
+  <script src="/ui/app.js"></script>
+</body>
+</html>

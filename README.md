@@ -4,7 +4,7 @@ Identity, credential, authorization, and audit layer for B2B networks: signed cr
 
 ## Status
 
-v0.2: Ed25519 credential issuance and deterministic verification over HTTP, backed by an append-only transparency log with signed tree heads, inclusion proofs, and prefix-consistency proofs. Revocation, selective disclosure, and authorization are not implemented yet.
+v0.2: Ed25519 credential issuance and deterministic verification over HTTP, backed by an append-only transparency log with signed tree heads, inclusion proofs, and prefix-consistency proofs. A built-in audit console at `/` exercises the full flow and verifies inclusion locally in the browser. Revocation, selective disclosure, and authorization are not implemented yet.
 
 | Stage | Scope | State |
 |-------|-------|-------|
@@ -31,7 +31,7 @@ export ISSUER_KEY=$(openssl rand -hex 32)
 cargo run
 ```
 
-Without `ISSUER_KEY` the service generates an ephemeral key and logs a warning; issued credentials stop verifying after restart. The transparency log is appended to `LOG_PATH` (default `data/transparency.log`) and reloaded on startup. Configuration is environment-based; see `.env.example`.
+Open `http://localhost:8083` for the audit console. Without `ISSUER_KEY` the service generates an ephemeral key and logs a warning; issued credentials stop verifying after restart. The transparency log is appended to `LOG_PATH` (default `data/transparency.log`) and reloaded on startup. Configuration is environment-based; see `.env.example`.
 
 ```sh
 curl localhost:8083/healthz
@@ -54,6 +54,7 @@ Send the returned `credential` object back as `{"credential": ...}` to `POST /v1
 - Append-only, durable transparency log with hashed subject and credential entries.
 - Signed tree heads, `O(log n)` inclusion proofs, and prefix-consistency proofs.
 - Public key discovery and local proof verification without trusting the service at query time.
+- Embedded browser console: issue and verify credentials, inspect recent entries, check inclusion proofs locally with WebCrypto, verify tree-head signatures, and request consistency proofs. No build step or third-party assets.
 
 ## Limits
 
@@ -61,7 +62,7 @@ Send the returned `credential` object back as `{"credential": ...}` to `POST /v1
 - One active issuer key per process. `ISSUER_KEY` is required for credentials that survive restart.
 - The log is a single-writer JSONL file. There is no replica gossip, witness cosigning, or multi-writer coordination.
 - Claims are not logged. Only credential and subject hashes are published, so the log cannot resolve a holder without the credential.
-- The issuance endpoint is unauthenticated. Keep it behind an operator-controlled network boundary.
+- The issuance endpoint and the console are unauthenticated. Keep both behind an operator-controlled network boundary.
 - Verification trusts the configured issuer identity and key id; multi-issuer key resolution comes later.
 
 ## Layout
@@ -71,8 +72,10 @@ src/main.rs        service entrypoint and issuer setup
 src/api.rs         HTTP API
 src/credential.rs  signing, canonicalization, verification
 src/transparency.rs Merkle log, inclusion and consistency proofs
+src/ui.rs          embedded audit console and static assets
 src/config.rs      env config
 src/health.rs      liveness/readiness
+ui                 HTML, CSS, and browser verification logic
 docs               architecture and API reference
 deploy             local dependencies (Postgres)
 migrations         schema migrations

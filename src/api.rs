@@ -61,6 +61,7 @@ impl Api {
             .route("/v1/log/consistency", get(log_consistency))
             .with_state(state)
             .merge(health)
+            .merge(crate::ui::router())
     }
 }
 

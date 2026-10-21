@@ -31,6 +31,11 @@ for _ in $(seq 1 50); do
   sleep 0.2
 done
 
+UI_HEADERS=$(curl -fsS -D - -o /dev/null "http://localhost:$PORT/")
+UI=$(curl -fsS "http://localhost:$PORT/")
+UI_JS=$(curl -fsS "http://localhost:$PORT/ui/app.js")
+UI_CSS=$(curl -fsS "http://localhost:$PORT/ui/styles.css")
+UI_ICON=$(curl -fsS "http://localhost:$PORT/ui/favicon.svg")
 ISSUER=$(curl -fsS "http://localhost:$PORT/v1/issuer")
 FIRST=$(curl -fsS -X POST "http://localhost:$PORT/v1/credentials" \
   -H "content-type: application/json" \
@@ -52,6 +57,12 @@ printf '%s\n' "$ISSUER"
 printf '%s\n' "$VERIFIED"
 printf '%s\n' "$HEAD"
 
+printf '%s' "$UI_HEADERS" | grep -qi "content-security-policy: default-src 'none'"
+printf '%s' "$UI" | grep -q "Credential Mesh"
+printf '%s' "$UI" | grep -q "/ui/app.js"
+printf '%s' "$UI_JS" | grep -q "inclusionRoot"
+printf '%s' "$UI_CSS" | grep -q -- "--accent"
+printf '%s' "$UI_ICON" | grep -q "<svg"
 printf '%s' "$ISSUER" | python3 -c 'import json,sys; data=json.load(sys.stdin); assert data["issuer"] and data["public_key"] and data["key_id"]'
 printf '%s' "$FIRST" | python3 -c 'import json,sys; data=json.load(sys.stdin); assert data["transparency"]["tree_head"]["tree_size"] == 1 and data["transparency"]["entry"]["index"] == 0'
 printf '%s' "$VERIFIED" | python3 -c 'import json,sys; data=json.load(sys.stdin); assert data["valid"] is True and data["subject"] == "did:mesh:holder" and data["claims"]["role"] == "supplier"'

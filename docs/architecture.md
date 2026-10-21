@@ -9,8 +9,10 @@ src/main.rs          service lifecycle, issuer setup, log recovery
 src/api.rs           issuer, issuance, verification, and log endpoints
 src/credential.rs    Ed25519 signatures, canonical payloads, verification
 src/transparency.rs  append-only Merkle log, journal, proofs
+src/ui.rs            embedded audit console and static assets
 src/config.rs        env config
 src/health.rs        liveness/readiness
+ui/                  browser console: HTML, CSS, WebCrypto verification
 ```
 
 Planned:
@@ -49,6 +51,12 @@ Every tree head is signed with the issuer key over the JCS bytes of `{tree_size,
 
 Entries are appended to a JSONL journal before they become visible in memory. On startup the journal is replayed, every index must be contiguous, and roots are rebuilt. A failed journal write rejects the issuance response rather than returning an unlogged credential. The journal is single-writer and not replicated; gossip is out of scope for v0.2.
 
+## Audit console
+
+`GET /` serves an operator and auditor console embedded into the binary with `include_str!`. It uses no frontend framework, build step, or external assets. The browser calls the same public API as any other client: `/v1/issuer`, `/v1/credentials`, `/v1/credentials/verify`, `/v1/log`, and the proof endpoints.
+
+Local proof checking is deliberately independent of server responses: the console canonicalizes the entry as JCS, rebuilds the RFC 6962 inclusion path with WebCrypto SHA-256, compares the root to the signed head, and verifies the Ed25519 head signature when WebCrypto exposes Ed25519. This gives the operator a second implementation of the proof logic and demonstrates that trusting the service at query time is unnecessary. Asset responses are locked down with a restrictive CSP, `nosniff`, `no-referrer`, and `no-store`.
+
 ## Security invariants
 
 1. Verification returns the same result for the same (credential, presentation, status snapshot, key set).
@@ -64,7 +72,7 @@ Invariant 5 is implemented for single-writer logs: any rewrite of a journaled en
 - One active issuer key and one issuer identity per process. Rotation and key history are stage 7.
 - Credentials are stateless, but issuance goes through the transparency journal and the log is replayed on startup.
 - The log is a single-writer local file. It has no replication, gossip, witness signatures, or multi-writer fencing.
-- The issuance endpoint is unauthenticated; it must run behind an operator-controlled network boundary.
+- The issuance endpoint and the audit console are unauthenticated; both must run behind an operator-controlled network boundary.
 - Claims are opaque JSON values and are not logged. Schema validation and selective disclosure are later stages.
 
 ## Consistency model
