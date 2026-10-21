@@ -1,4 +1,4 @@
-.PHONY: build test fmt clippy run up down
+.PHONY: build test fmt clippy run smoke up down
 
 build:
 	cargo build --release
@@ -14,6 +14,9 @@ clippy:
 
 run:
 	cargo run
+
+smoke:
+	./scripts/smoke.sh
 
 up:
 	docker compose -f deploy/docker-compose.yml up -d

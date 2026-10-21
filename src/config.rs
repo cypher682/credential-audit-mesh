@@ -6,6 +6,8 @@ pub struct Config {
     pub port: u16,
     pub log_level: String,
     pub database_url: Option<String>,
+    pub issuer_id: String,
+    pub issuer_key: Option<String>,
 }
 
 impl Default for Config {
@@ -15,6 +17,8 @@ impl Default for Config {
             port: 8083,
             log_level: "info".to_string(),
             database_url: None,
+            issuer_id: "did:mesh:issuer".to_string(),
+            issuer_key: None,
         }
     }
 }
@@ -47,6 +51,12 @@ impl Config {
         if let Some(v) = get("DATABASE_URL").filter(|v| !v.is_empty()) {
             cfg.database_url = Some(v);
         }
+        if let Some(v) = get("ISSUER_ID").filter(|v| !v.trim().is_empty()) {
+            cfg.issuer_id = v.trim().to_string();
+        }
+        if let Some(v) = get("ISSUER_KEY").filter(|v| !v.trim().is_empty()) {
+            cfg.issuer_key = Some(v);
+        }
 
         Ok(cfg)
     }
@@ -73,12 +83,22 @@ mod tests {
             "SERVICE_NAME" => Some("mesh".into()),
             "PORT" => Some("9090".into()),
             "DATABASE_URL" => Some("postgres://localhost/mesh".into()),
+            "ISSUER_ID" => Some("did:mesh:acme".into()),
+            "ISSUER_KEY" => Some("00".repeat(32)),
             _ => None,
         })
         .expect("config");
         assert_eq!(cfg.service_name, "mesh");
         assert_eq!(cfg.port, 9090);
-        assert_eq!(cfg.database_url.as_deref(), Some("postgres://localhost/mesh"));
+        assert_eq!(
+            cfg.database_url.as_deref(),
+            Some("postgres://localhost/mesh")
+        );
+        assert_eq!(cfg.issuer_id, "did:mesh:acme");
+        assert_eq!(
+            cfg.issuer_key.as_deref(),
+            Some("0000000000000000000000000000000000000000000000000000000000000000")
+        );
     }
 
     #[test]
